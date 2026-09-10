@@ -11,6 +11,39 @@ iTunes for Windows.
 See [`appleMusicWindows.desktop/README.md`](appleMusicWindows.desktop/README.md) for what it shows,
 how it works, and the Apple-Music-specific quirks it works around.
 
+## What it looks like
+
+A player sits above the account panel with artwork, track and artist, and working transport
+controls. The activity is a **Listening** activity, so Discord gives it the green music note
+rather than the game controller:
+
+![Player showing a track with previous, pause and next controls](assets/player-track.png)
+
+On an **Apple Music radio station**, skipping is impossible — Apple's licensing forbids it, and
+the media session says so. Instead of leaving two dead buttons, the player explains why and offers
+station artwork tiles that switch station, plus a link into the Radio tab:
+
+![Player on a radio station, showing station tiles instead of skip buttons](assets/player-radio.png)
+
+Station logos are fetched from each station's page at runtime rather than hardcoded, so they keep
+working when Apple changes artwork.
+
+### Compared with the official macOS plugin
+
+| | `appleMusic.desktop` | this plugin |
+| --- | --- | --- |
+| Windows | no — AppleScript and `osascript` | **yes** — Windows media session |
+| Player controls | none | **play / pause / skip** |
+| Radio stations | shows a reduced activity | **explains it, offers station switching** |
+| Activity type | Playing (game controller) by default | **Listening (music note) by default** |
+| Artwork / link lookup | first track of the matching album | **scored on track name, then album, then artist** |
+| Seeking | n/a | not possible — Apple Music ignores it, see the plugin README |
+
+That last row is a real bug in the macOS plugin, not just a difference: matching on the album alone
+returns an arbitrary track from the right album, so *Stay* resolves to *Butterflies*' artwork and
+links. Reported upstream as [Vencord#4593](https://github.com/Vendicated/Vencord/issues/4593);
+`dev/test-upstream-bug.mjs` reproduces it against the live API.
+
 ## Layout
 
 ```
@@ -19,6 +52,7 @@ appleMusicWindows.desktop/   <- copy this whole folder into Vencord's src/userpl
   native.ts                  Node-side: PowerShell helper + iTunes lookup
   PlayerComponent.tsx        The play/pause + skip player above the account panel
   store.ts                   Shares the polled track data with the player
+  stations.ts                Default radio stations + link parsing
   styles.css                 Player styling
   hoverOnly.css              Toggled on by the "hover controls" setting
   smtcScript.ts              GENERATED from dev/smtc.ps1
@@ -33,7 +67,14 @@ dev/                         Not shipped - source of truth + test harnesses
   test-bundle.mjs            Pull the script out of Vencord's build and run it
   test-match.mjs             Verify iTunes track matching
   test-itunes.mjs            Raw iTunes API responses
+  test-patch.mjs             Account-panel patch, with and without SpotifyControls
+  test-stations.mjs          Resolve artwork for every default station (rot check)
+  test-derivation.mjs        How much code is still shared with the macOS plugin
+  test-upstream-bug.mjs      Reproduce the upstream track-matching bug
+  itunes-results.mjs         Print iTunes results in API order
+  sources.mjs                What media sources does Windows see right now?
   probe-controls.ps1         Read-only: what controls does the session advertise?
+assets/                      Screenshots used by this README
 ```
 
 ## Requirements
@@ -104,7 +145,10 @@ node dev/test-protocol.mjs   # get/sources/cmd, bad regex, bad JSON, clean exit
 node dev/test-embed.mjs      # embedded copy is byte-identical to smtc.ps1, and runs
 node dev/test-match.mjs      # iTunes lookup picks the right song
 node dev/test-bundle.mjs     # pull the script back out of Vencord's built bundle and run it
+node dev/test-patch.mjs      # panel patch nests correctly with SpotifyControls
+node dev/test-stations.mjs   # every default station's artwork still resolves
 node dev/harness.mjs 5 2000  # poll the live session 5 times, 2s apart
+node dev/sources.mjs         # what media sources does Windows see right now?
 node dev/gen-script.mjs --check   # smtcScript.ts is in sync with smtc.ps1
 ```
 
