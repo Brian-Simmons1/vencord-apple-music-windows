@@ -71,6 +71,49 @@ function ControlButton({ label, disabled, unavailable, onClick, children }: Cont
     );
 }
 
+/** The app registers music:, so an https link is rewritten to open in it. */
+function toAppUrl(url: string) {
+    return url.replace(/^https:\/\//, "music://");
+}
+
+const BROWSE_STATIONS = { name: "Browse stations", url: "music://music.apple.com/us/radio" };
+
+/** Parses the "Name=URL; Name=URL" setting into usable links. */
+function parseStationLinks(raw: string) {
+    return raw
+        .split(";")
+        .map(entry => entry.trim())
+        .filter(Boolean)
+        .map(entry => {
+            const split = entry.indexOf("=");
+            if (split === -1) return null;
+            const name = entry.slice(0, split).trim();
+            const url = entry.slice(split + 1).trim();
+            return name && url ? { name, url: toAppUrl(url) } : null;
+        })
+        .filter((x): x is { name: string; url: string; } => x !== null);
+}
+
+function StationLinks() {
+    const custom = parseStationLinks(settings.store.customStationLinks ?? "");
+    const links = custom.length ? custom : [BROWSE_STATIONS];
+
+    return (
+        <div className="vc-amw-stations">
+            {links.map(({ name, url }) => (
+                <button
+                    key={url}
+                    className="vc-amw-station"
+                    title={`Open ${name} in Apple Music`}
+                    onClick={() => { Native.openAppleMusicUrl(url); }}
+                >
+                    {name}
+                </button>
+            ))}
+        </div>
+    );
+}
+
 export function Player() {
     const track = useTrack();
     const position = useSmoothPosition(track);
@@ -95,6 +138,10 @@ export function Player() {
             setBusy(false);
         }
     }
+
+    // Both false means a radio station: Apple's licensing forbids skipping one,
+    // and the session reports that honestly.
+    const skipUnavailable = controls?.previous === false && controls?.next === false;
 
     const showProgress = settings.store.showProgressBar
         && position !== undefined
@@ -133,10 +180,20 @@ export function Player() {
                 </div>
             )}
 
+            {/* Radio stations refuse skipping outright, so rather than show two
+                dead buttons, say so and offer a way to change station instead. */}
+            {skipUnavailable && settings.store.showRadioNotice && (
+                <div className="vc-amw-notice">Radio station — can’t skip</div>
+            )}
+
+            {skipUnavailable && settings.store.showStationLinks && <StationLinks />}
+
             <div className="vc-amw-controls">
-                <ControlButton label="Previous" disabled={busy} unavailable={controls?.previous === false} onClick={() => run("previous")}>
-                    <PreviousIcon />
-                </ControlButton>
+                {!skipUnavailable && (
+                    <ControlButton label="Previous" disabled={busy} onClick={() => run("previous")}>
+                        <PreviousIcon />
+                    </ControlButton>
+                )}
 
                 <ControlButton
                     label={track.isPlaying ? "Pause" : "Play"}
@@ -147,9 +204,11 @@ export function Player() {
                     {track.isPlaying ? <PauseIcon /> : <PlayIcon />}
                 </ControlButton>
 
-                <ControlButton label="Next" disabled={busy} unavailable={controls?.next === false} onClick={() => run("next")}>
-                    <NextIcon />
-                </ControlButton>
+                {!skipUnavailable && (
+                    <ControlButton label="Next" disabled={busy} onClick={() => run("next")}>
+                        <NextIcon />
+                    </ControlButton>
+                )}
             </div>
         </div>
     );

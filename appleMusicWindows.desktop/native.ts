@@ -7,7 +7,7 @@
 import { CspPolicies, ImageSrc } from "@main/csp";
 import { VENCORD_USER_AGENT } from "@shared/vencordUserAgent";
 import { ChildProcess, spawn } from "child_process";
-import { IpcMainInvokeEvent } from "electron";
+import { IpcMainInvokeEvent, shell } from "electron";
 import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -464,6 +464,33 @@ export async function sendCommand(
 ): Promise<boolean> {
     const payload = await sendRequest({ op: "cmd", pattern: sourcePattern, command });
     return payload?.found === true && payload?.delivered === true;
+}
+
+// Vencord's own openExternal refuses anything outside ALLOWED_PROTOCOLS, which
+// covers itunes: but not music: - the scheme the Apple Music app actually
+// registers. This plugin owns its main process code, so it can open the link
+// itself; the allowlist below is why that stays safe, since the renderer must
+// not be able to ask us to launch arbitrary URLs.
+const APPLE_MUSIC_URL = /^(?:music|musics|itms|itmss|itunes|https):$/;
+
+export async function openAppleMusicUrl(_: IpcMainInvokeEvent, url: string): Promise<boolean> {
+    let parsed: URL;
+    try {
+        parsed = new URL(url);
+    } catch {
+        return false;
+    }
+
+    if (!APPLE_MUSIC_URL.test(parsed.protocol)) return false;
+    if (parsed.hostname !== "music.apple.com") return false;
+
+    try {
+        await shell.openExternal(url);
+        return true;
+    } catch (error) {
+        console.error(`${LOG_PREFIX} failed to open ${url}:`, error);
+        return false;
+    }
 }
 
 /** Diagnostic for the settings panel: what media sources does Windows see? */

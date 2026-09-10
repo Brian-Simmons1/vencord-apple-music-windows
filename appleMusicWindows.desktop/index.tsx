@@ -107,6 +107,21 @@ export const settings = definePluginSettings({
         description: "Show a progress bar in the player. It is read-only: Apple Music does not support seeking from outside the app.",
         default: true,
     },
+    showRadioNotice: {
+        type: OptionType.BOOLEAN,
+        description: "On a radio station, replace the skip buttons with a note explaining that stations can't be skipped",
+        default: true,
+    },
+    showStationLinks: {
+        type: OptionType.BOOLEAN,
+        description: "On a radio station, offer links that open Apple Music to a different station",
+        default: true,
+    },
+    customStationLinks: {
+        type: OptionType.STRING,
+        description: "Your own station shortcuts, as Name=URL pairs separated by semicolons. Copy a station's share link from Apple Music. Leave empty to just get a \"Browse stations\" link.",
+        default: "",
+    },
     matchAppleMusicApp: {
         type: OptionType.BOOLEAN,
         description: "Track the Apple Music app from the Microsoft Store",
@@ -424,17 +439,26 @@ export default definePlugin({
         const assets: ActivityAssets = {};
 
         // Live radio and streams report no usable duration.
-        const isRadio = trackData.duration === undefined;
+        // Radio and live streams report no duration, but Apple Music still gives
+        // the track's artist and album. Suppressing every field whenever the
+        // duration is missing (as the macOS plugin does) throws away metadata we
+        // actually have, so each field is decided by whether it resolved to
+        // anything rather than by whether a timeline exists.
+        const format = (formatStr: string) => {
+            const text = customFormat(formatStr, trackData).trim();
+            // Drop separators left behind by an empty {artist} / {album}.
+            return text.replace(/^[\s·—-]+|[\s·—-]+$/g, "") || undefined;
+        };
 
         if (settings.store.largeImageType !== AssetImageType.Disabled) {
             assets.large_image = largeImageAsset;
-            if (!isRadio) assets.large_text = customFormat(settings.store.largeTextString, trackData);
+            assets.large_text = format(settings.store.largeTextString);
             assets.large_url = getLink(settings.store.largeImageLink, trackData);
         }
 
         if (settings.store.smallImageType !== AssetImageType.Disabled) {
             assets.small_image = smallImageAsset;
-            if (!isRadio) assets.small_text = customFormat(settings.store.smallTextString, trackData);
+            assets.small_text = format(settings.store.smallTextString);
             assets.small_url = getLink(settings.store.smallImageLink, trackData);
         }
 
@@ -465,7 +489,7 @@ export default definePlugin({
 
             name: customFormat(settings.store.nameString, trackData),
             details: customFormat(settings.store.detailsString, trackData),
-            state: isRadio ? undefined : customFormat(settings.store.stateString, trackData),
+            state: format(settings.store.stateString),
             details_url: getLink(settings.store.detailsLink, trackData),
             state_url: getLink(settings.store.stateLink, trackData),
 
@@ -476,8 +500,8 @@ export default definePlugin({
 
             assets,
 
-            buttons: !isRadio && buttons.length ? buttons.map(v => v.label) : undefined,
-            metadata: !isRadio && buttons.length ? { button_urls: buttons.map(v => v.url) } : undefined,
+            buttons: buttons.length ? buttons.map(v => v.label) : undefined,
+            metadata: buttons.length ? { button_urls: buttons.map(v => v.url) } : undefined,
 
             type: settings.store.activityType,
             status_display_type: {
