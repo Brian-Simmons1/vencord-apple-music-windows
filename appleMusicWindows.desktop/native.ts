@@ -473,6 +473,29 @@ export async function sendCommand(
 // not be able to ask us to launch arbitrary URLs.
 const APPLE_MUSIC_URL = /^(?:music|musics|itms|itmss|itunes|https):$/;
 
+// Station artwork is resolved from the station page's og:image rather than
+// hardcoded, so the list survives Apple reshuffling their artwork. The tag
+// gives a 1200x630 banner; swapping the last path segment yields a square
+// thumbnail, the same trick used for artist artwork above.
+const stationArtworkCache = new Map<string, string | null>();
+
+export async function fetchStationArtwork(_: IpcMainInvokeEvent, url: string): Promise<string | null> {
+    const cached = stationArtworkCache.get(url);
+    if (cached !== undefined) return cached;
+
+    let artwork: string | null = null;
+    try {
+        const html = await fetch(url, { headers: { "user-agent": VENCORD_USER_AGENT } }).then(r => r.text());
+        const match = html.match(/<meta property="og:image" content="(.+?)"/);
+        if (match) artwork = match[1].replace(/\/[^/]+$/, "/128x128bb.jpg");
+    } catch (error) {
+        console.error(`${LOG_PREFIX} failed to resolve station artwork for ${url}:`, error);
+    }
+
+    stationArtworkCache.set(url, artwork);
+    return artwork;
+}
+
 export async function openAppleMusicUrl(_: IpcMainInvokeEvent, url: string): Promise<boolean> {
     let parsed: URL;
     try {

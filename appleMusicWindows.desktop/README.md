@@ -34,8 +34,21 @@ setting; nothing is forced on:
 
 On an Apple Music **radio station**, the session reports `next` and `previous` as unavailable and
 gives no duration. That is Apple's licensing, not a bug — you cannot skip a station from anywhere,
-including the Apple Music app itself. The buttons dim and say so on hover, and the progress bar is
-omitted since a live stream has no length. Play/pause still works.
+including the Apple Music app itself. Play/pause still works.
+
+Rather than leave two dead buttons, the player swaps them for a short note and a row of station
+tiles that switch station instead. Those work because Apple Music registers the `music:` URL scheme,
+so an `https://music.apple.com/...` link rewritten to `music://...` opens in the app.
+
+Station logos are resolved at runtime from each station page's `og:image`, not hardcoded, so they
+survive Apple changing artwork and a dead station degrades to a plain text button. The **station
+ids** are the one genuinely rot-prone part of this plugin: Apple retires and renumbers stations.
+`node dev/test-stations.mjs` resolves artwork for every default and fails loudly when one breaks.
+Override the list entirely with the `customStationLinks` setting (`Name=URL` pairs separated by
+semicolons — paste a station's share link).
+
+The station name itself is **not available**. SMTC exposes the currently playing track, not the
+station identity, so it cannot be shown in the activity card.
 
 ### What Apple Music actually supports
 

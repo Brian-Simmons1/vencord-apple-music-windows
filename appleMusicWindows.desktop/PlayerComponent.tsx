@@ -7,10 +7,11 @@
 import "./styles.css";
 
 import { Link } from "@components/Link";
-import { useState } from "@webpack/common";
+import { useEffect, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
 import { buildSourcePattern, Native, settings, type TransportCommand } from ".";
+import { BROWSE_STATIONS, DEFAULT_STATIONS, parseStationLinks, type StationLink, toAppUrl } from "./stations";
 import { requestRefresh, useSmoothPosition, useTrack } from "./store";
 
 function formatTime(seconds: number) {
@@ -20,25 +21,25 @@ function formatTime(seconds: number) {
 }
 
 const PreviousIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
     </svg>
 );
 
 const NextIcon = () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M16 6h2v12h-2zm-2.5 6L5 6v12z" />
     </svg>
 );
 
 const PlayIcon = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M8 5v14l11-7z" />
     </svg>
 );
 
 const PauseIcon = () => (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
         <path d="M7 5h4v14H7zm6 0h4v14h-4z" />
     </svg>
 );
@@ -49,18 +50,18 @@ interface ControlButtonProps {
     disabled?: boolean;
     /** The session says it does not accept this command at all. */
     unavailable?: boolean;
+    /** The play/pause button, which gets the filled high-contrast treatment. */
+    primary?: boolean;
     onClick(): void;
     children: ReactNode;
 }
 
-function ControlButton({ label, disabled, unavailable, onClick, children }: ControlButtonProps) {
-    // Apple Music radio stations refuse skipping outright, so say why rather
-    // than leaving a dead button with a "no entry" cursor.
+function ControlButton({ label, disabled, unavailable, primary, onClick, children }: ControlButtonProps) {
     const title = unavailable ? `${label} is not available for this station` : label;
 
     return (
         <button
-            className="vc-amw-button"
+            className={primary ? "vc-amw-button vc-amw-button-primary" : "vc-amw-button"}
             aria-label={title}
             title={title}
             disabled={disabled || unavailable}
@@ -71,45 +72,45 @@ function ControlButton({ label, disabled, unavailable, onClick, children }: Cont
     );
 }
 
-/** The app registers music:, so an https link is rewritten to open in it. */
-function toAppUrl(url: string) {
-    return url.replace(/^https:\/\//, "music://");
-}
+function StationTile({ station }: { station: StationLink; }) {
+    const [artwork, setArtwork] = useState<string | null>(null);
 
-const BROWSE_STATIONS = { name: "Browse stations", url: "music://music.apple.com/us/radio" };
+    useEffect(() => {
+        let cancelled = false;
+        Native.fetchStationArtwork(station.url)
+            .then(url => { if (!cancelled) setArtwork(url); })
+            .catch(() => { /* falls back to the text label */ });
+        return () => { cancelled = true; };
+    }, [station.url]);
 
-/** Parses the "Name=URL; Name=URL" setting into usable links. */
-function parseStationLinks(raw: string) {
-    return raw
-        .split(";")
-        .map(entry => entry.trim())
-        .filter(Boolean)
-        .map(entry => {
-            const split = entry.indexOf("=");
-            if (split === -1) return null;
-            const name = entry.slice(0, split).trim();
-            const url = entry.slice(split + 1).trim();
-            return name && url ? { name, url: toAppUrl(url) } : null;
-        })
-        .filter((x): x is { name: string; url: string; } => x !== null);
+    return (
+        <button
+            className={artwork ? "vc-amw-station vc-amw-station-art" : "vc-amw-station"}
+            title={`Open ${station.name} in Apple Music`}
+            aria-label={`Open ${station.name} in Apple Music`}
+            onClick={() => { Native.openAppleMusicUrl(toAppUrl(station.url)); }}
+        >
+            {artwork
+                ? <img className="vc-amw-station-img" src={artwork} alt={station.name} />
+                : station.name}
+        </button>
+    );
 }
 
 function StationLinks() {
     const custom = parseStationLinks(settings.store.customStationLinks ?? "");
-    const links = custom.length ? custom : [BROWSE_STATIONS];
+    const stations = custom.length ? custom : DEFAULT_STATIONS;
 
     return (
         <div className="vc-amw-stations">
-            {links.map(({ name, url }) => (
-                <button
-                    key={url}
-                    className="vc-amw-station"
-                    title={`Open ${name} in Apple Music`}
-                    onClick={() => { Native.openAppleMusicUrl(url); }}
-                >
-                    {name}
-                </button>
-            ))}
+            {stations.map(station => <StationTile key={station.url} station={station} />)}
+            <button
+                className="vc-amw-station"
+                title="Open the Radio tab in Apple Music"
+                onClick={() => { Native.openAppleMusicUrl(toAppUrl(BROWSE_STATIONS.url)); }}
+            >
+                Browse
+            </button>
         </div>
     );
 }
@@ -150,7 +151,9 @@ export function Player() {
 
     return (
         <div className="vc-amw-player">
-            <div className="vc-amw-info">
+            {/* Art, text and transport share one row so the artwork can be big
+                without making the panel tall, and so the controls never move. */}
+            <div className="vc-amw-main">
                 {settings.store.showAlbumArt && track.albumArtwork && (
                     <img className="vc-amw-art" src={track.albumArtwork} alt={track.album ?? track.name} />
                 )}
@@ -163,6 +166,34 @@ export function Player() {
                     {track.artist && (track.appleMusicArtistLink
                         ? <Link className="vc-amw-subtitle" href={track.appleMusicArtistLink}>{track.artist}</Link>
                         : <span className="vc-amw-subtitle">{track.artist}</span>)}
+
+                    {skipUnavailable && settings.store.showRadioNotice && (
+                        <span className="vc-amw-notice">Radio station — can’t skip</span>
+                    )}
+                </div>
+
+                <div className="vc-amw-controls">
+                    {!skipUnavailable && (
+                        <ControlButton label="Previous" disabled={busy} onClick={() => run("previous")}>
+                            <PreviousIcon />
+                        </ControlButton>
+                    )}
+
+                    <ControlButton
+                        label={track.isPlaying ? "Pause" : "Play"}
+                        disabled={busy}
+                        unavailable={controls?.playPause === false}
+                        primary
+                        onClick={() => run("playpause")}
+                    >
+                        {track.isPlaying ? <PauseIcon /> : <PlayIcon />}
+                    </ControlButton>
+
+                    {!skipUnavailable && (
+                        <ControlButton label="Next" disabled={busy} onClick={() => run("next")}>
+                            <NextIcon />
+                        </ControlButton>
+                    )}
                 </div>
             </div>
 
@@ -180,36 +211,7 @@ export function Player() {
                 </div>
             )}
 
-            {/* Radio stations refuse skipping outright, so rather than show two
-                dead buttons, say so and offer a way to change station instead. */}
-            {skipUnavailable && settings.store.showRadioNotice && (
-                <div className="vc-amw-notice">Radio station — can’t skip</div>
-            )}
-
             {skipUnavailable && settings.store.showStationLinks && <StationLinks />}
-
-            <div className="vc-amw-controls">
-                {!skipUnavailable && (
-                    <ControlButton label="Previous" disabled={busy} onClick={() => run("previous")}>
-                        <PreviousIcon />
-                    </ControlButton>
-                )}
-
-                <ControlButton
-                    label={track.isPlaying ? "Pause" : "Play"}
-                    disabled={busy}
-                    unavailable={controls?.playPause === false}
-                    onClick={() => run("playpause")}
-                >
-                    {track.isPlaying ? <PauseIcon /> : <PlayIcon />}
-                </ControlButton>
-
-                {!skipUnavailable && (
-                    <ControlButton label="Next" disabled={busy} onClick={() => run("next")}>
-                        <NextIcon />
-                    </ControlButton>
-                )}
-            </div>
         </div>
     );
 }
