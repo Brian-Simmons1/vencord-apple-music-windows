@@ -173,8 +173,8 @@ flyout. If it *is* listed but presence is empty, check Discord's console (`Ctrl+
 `[AppleMusicWindowsRichPresence]`.
 
 **Wrong artwork or wrong song.** Artwork comes from an iTunes Search API lookup by name, so an obscure
-or regionally-unavailable track can miss. A continuously streaming station reports no duration, so it
-gets no seek bar; a scheduled show usually does report one and keeps the bar.
+or regionally-unavailable track can miss. Live radio reports no duration, so it gets no seek bar; an
+on-demand replay of a past show generally does report one and keeps the bar.
 
 **Presence lingers after pausing.** That's the default — pausing clears the activity. Turn on
 *Keep showing the activity while playback is paused* if you'd rather it stay.
