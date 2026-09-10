@@ -13,14 +13,17 @@ how it works, and the Apple-Music-specific quirks it works around.
 
 ## What it looks like
 
-A player sits above the account panel with artwork, track and artist, and working transport
-controls. The activity is a **Listening** activity, so Discord gives it the green music note
-rather than the game controller:
+The activity is a **Listening** activity, so Discord renders it with the music note and a real
+seek bar, with album artwork and the artist's photo as the small icon:
+
+<img src="assets/presence-card.png" alt="Discord profile showing Listening to Apple Music with track, artist, album and a seek bar" width="330" />
+
+A player sits above the account panel with artwork, track, artist and working transport controls:
 
 ![Player showing a track with previous, pause and next controls](assets/player-track.png)
 
-On an **Apple Music radio station**, skipping is impossible — Apple's licensing forbids it, and
-the media session says so. Instead of leaving two dead buttons, the player explains why and offers
+On an **Apple Music radio station** skipping is impossible - Apple's licensing forbids it, and the
+media session says so. Rather than leaving two dead buttons, the player explains why and offers
 station artwork tiles that switch station, plus a link into the Radio tab:
 
 ![Player on a radio station, showing station tiles instead of skip buttons](assets/player-radio.png)
@@ -170,8 +173,8 @@ flyout. If it *is* listed but presence is empty, check Discord's console (`Ctrl+
 `[AppleMusicWindowsRichPresence]`.
 
 **Wrong artwork or wrong song.** Artwork comes from an iTunes Search API lookup by name, so an obscure
-or regionally-unavailable track can miss. Radio and live streams report no duration and fall back to a
-reduced activity with no seek bar.
+or regionally-unavailable track can miss. A continuously streaming station reports no duration, so it
+gets no seek bar; a scheduled show usually does report one and keeps the bar.
 
 **Presence lingers after pausing.** That's the default — pausing clears the activity. Turn on
 *Keep showing the activity while playback is paused* if you'd rather it stay.

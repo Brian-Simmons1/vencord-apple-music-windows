@@ -32,9 +32,14 @@ setting; nothing is forced on:
 
 ### Radio stations disable skipping
 
-On an Apple Music **radio station**, the session reports `next` and `previous` as unavailable and
-gives no duration. That is Apple's licensing, not a bug — you cannot skip a station from anywhere,
-including the Apple Music app itself. Play/pause still works.
+On an Apple Music **radio station**, the session reports `next` and `previous` as unavailable.
+That is Apple's licensing, not a bug — you cannot skip a station from anywhere, including the Apple
+Music app itself. Play/pause still works.
+
+Whether a station has a timeline varies, so the progress bar follows the data rather than assuming:
+a continuously streaming station reports no duration and gets no bar, while a scheduled show reports
+a real one (an Apple Music 1 takeover, say, running to 63:13) and does get a bar. The buttons come
+from the session's advertised `controls` flags for the same reason.
 
 Rather than leave two dead buttons, the player swaps them for a short note and a row of station
 tiles that switch station instead. Those work because Apple Music registers the `music:` URL scheme,
