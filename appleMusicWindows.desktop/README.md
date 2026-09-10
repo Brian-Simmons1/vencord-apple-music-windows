@@ -30,6 +30,13 @@ setting; nothing is forced on:
 | Show album art | on | 40px artwork thumbnail. |
 | Show progress bar | on | Elapsed / total. **Read-only** — see below. |
 
+### Radio stations disable skipping
+
+On an Apple Music **radio station**, the session reports `next` and `previous` as unavailable and
+gives no duration. That is Apple's licensing, not a bug — you cannot skip a station from anywhere,
+including the Apple Music app itself. The buttons dim and say so on hover, and the progress bar is
+omitted since a live stream has no length. Play/pause still works.
+
 ### What Apple Music actually supports
 
 Each command was tested against the running app rather than trusted, which matters because

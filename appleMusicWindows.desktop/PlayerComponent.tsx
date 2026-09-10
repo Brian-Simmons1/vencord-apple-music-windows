@@ -45,14 +45,27 @@ const PauseIcon = () => (
 
 interface ControlButtonProps {
     label: string;
+    /** Busy sending a command - momentary, so it keeps the plain label. */
     disabled?: boolean;
+    /** The session says it does not accept this command at all. */
+    unavailable?: boolean;
     onClick(): void;
     children: ReactNode;
 }
 
-function ControlButton({ label, disabled, onClick, children }: ControlButtonProps) {
+function ControlButton({ label, disabled, unavailable, onClick, children }: ControlButtonProps) {
+    // Apple Music radio stations refuse skipping outright, so say why rather
+    // than leaving a dead button with a "no entry" cursor.
+    const title = unavailable ? `${label} is not available for this station` : label;
+
     return (
-        <button className="vc-amw-button" aria-label={label} title={label} disabled={disabled} onClick={onClick}>
+        <button
+            className="vc-amw-button"
+            aria-label={title}
+            title={title}
+            disabled={disabled || unavailable}
+            onClick={onClick}
+        >
             {children}
         </button>
     );
@@ -121,19 +134,20 @@ export function Player() {
             )}
 
             <div className="vc-amw-controls">
-                <ControlButton label="Previous" disabled={busy || controls?.previous === false} onClick={() => run("previous")}>
+                <ControlButton label="Previous" disabled={busy} unavailable={controls?.previous === false} onClick={() => run("previous")}>
                     <PreviousIcon />
                 </ControlButton>
 
                 <ControlButton
                     label={track.isPlaying ? "Pause" : "Play"}
-                    disabled={busy || controls?.playPause === false}
+                    disabled={busy}
+                    unavailable={controls?.playPause === false}
                     onClick={() => run("playpause")}
                 >
                     {track.isPlaying ? <PauseIcon /> : <PlayIcon />}
                 </ControlButton>
 
-                <ControlButton label="Next" disabled={busy || controls?.next === false} onClick={() => run("next")}>
+                <ControlButton label="Next" disabled={busy} unavailable={controls?.next === false} onClick={() => run("next")}>
                     <NextIcon />
                 </ControlButton>
             </div>

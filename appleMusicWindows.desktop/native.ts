@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { CspPolicies, ImageSrc } from "@main/csp";
 import { VENCORD_USER_AGENT } from "@shared/vencordUserAgent";
 import { ChildProcess, spawn } from "child_process";
 import { IpcMainInvokeEvent } from "electron";
@@ -25,6 +26,13 @@ const MAX_CONSECUTIVE_FAILURES = 3;
 const FAILURE_COOLDOWN_MS = 60_000;
 
 const LOG_PREFIX = "[AppleMusicWindowsRichPresence]";
+
+// Apple's artwork CDN. The iTunes lookup itself runs here in the main process
+// and so is not subject to the renderer's CSP, but the panel player renders the
+// artwork in an <img>, which is - without this the image is silently blocked
+// and shows as broken. Rich presence artwork is unaffected either way, since
+// that goes through Discord's own asset proxy rather than a direct request.
+CspPolicies["*.mzstatic.com"] = ImageSrc;
 
 // ---------------------------------------------------------------------------
 // PowerShell helper process

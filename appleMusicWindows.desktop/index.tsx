@@ -340,21 +340,32 @@ export default definePlugin({
 
     settings,
 
-    // Renders the player above the account panel. This is the one patch worth
-    // borrowing from SpotifyControls; its others are Spotify-Web-API specific.
-    // Regex against Discord's account panel is the most fragile part of this
-    // plugin - if the player vanishes after a Discord update, suspect this.
+    // Renders the player above the account panel, the same slot SpotifyControls
+    // uses. Regex against Discord's account panel is the most fragile part of
+    // this plugin - if the player vanishes after a Discord update, suspect this.
+    //
+    // Two details make this coexist with SpotifyControls, which targets the very
+    // same call. Userplugins are patched after src/plugins, so by the time this
+    // runs the component may already be a wrapper:
+    //
+    //   jsx(Vencord.Plugins.plugins["SpotifyControls"].PanelWrapper,{VencordOriginal:AccountPanel,...
+    //
+    //   1. The component is matched as [^,{}]+ rather than \i, which is only a
+    //      bare identifier and would not match that dotted, bracketed path.
+    //   2. The original is handed over as AmwOriginal, not VencordOriginal.
+    //      Reusing that name would emit the key twice, and the later one wins,
+    //      which would drop Spotify's wrapper and hide its player.
     patches: [
         {
             find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
             replacement: {
-                match: /(?<=\i\.jsxs?\)\()(\i),{(?=[^}]*?userTag:\i,occluded:)/,
-                replace: "$self.PanelWrapper,{VencordOriginal:$1,"
+                match: /(?<=\i\.jsxs?\)\()([^,{}]+),{(?=[^}]*?userTag:\i,occluded:)/,
+                replace: "$self.PanelWrapper,{AmwOriginal:$1,"
             }
         }
     ],
 
-    PanelWrapper({ VencordOriginal, ...props }) {
+    PanelWrapper({ AmwOriginal, ...props }) {
         return (
             <>
                 <ErrorBoundary
@@ -365,7 +376,7 @@ export default definePlugin({
                     <Player />
                 </ErrorBoundary>
 
-                <VencordOriginal {...props} />
+                <AmwOriginal {...props} />
             </>
         );
     },
