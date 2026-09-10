@@ -4,13 +4,20 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+/* Discord has migrated to new design tokens (--text-default, --text-strong,
+   --interactive-icon-*, --background-base-*). The legacy names this originally
+   used, such as --header-primary, no longer resolve, and an unresolvable var()
+   silently inherits instead - which is how the track title ended up dark on a
+   dark panel while --text-muted next to it stayed readable. Modern token first,
+   legacy name as the fallback so older clients still render correctly. */
+
 .vc-amw-player {
     display: flex;
     flex-direction: column;
     gap: 6px;
     padding: 8px;
-    background: var(--background-secondary-alt, var(--background-secondary));
-    border-top: 1px solid var(--background-modifier-accent);
+    background: var(--background-base-lower, var(--background-secondary-alt, var(--background-secondary)));
+    border-top: 1px solid var(--background-mod-subtle, var(--background-modifier-accent));
 }
 
 /* Artwork, text and transport on one row: keeps the panel short, lets the
@@ -48,18 +55,16 @@
     text-decoration: none;
 }
 
-/* Explicit weight and colour: the account panel is a favourite target for
-   themes with background images, where inherited text can wash out. */
 .vc-amw-title {
     font-size: 14px;
     font-weight: 600;
-    color: var(--header-primary);
+    color: var(--text-strong, var(--text-default, var(--header-primary)));
 }
 
 .vc-amw-subtitle {
     font-size: 12px;
     font-weight: 500;
-    color: var(--header-secondary);
+    color: var(--text-default, var(--header-secondary));
 }
 
 .vc-amw-notice {
@@ -90,7 +95,7 @@ a.vc-amw-subtitle:hover {
     flex: 1 1 auto;
     height: 4px;
     border-radius: 2px;
-    background: var(--background-modifier-accent);
+    background: var(--background-mod-subtle, var(--background-modifier-accent));
     overflow: hidden;
 }
 
@@ -117,12 +122,12 @@ a.vc-amw-subtitle:hover {
     border: none;
     border-radius: 50%;
     background: none;
-    color: var(--interactive-normal);
+    color: var(--interactive-icon-default, var(--interactive-normal));
     cursor: pointer;
 }
 
 .vc-amw-button:disabled {
-    color: var(--interactive-muted);
+    color: var(--text-muted, var(--interactive-muted));
     cursor: default;
     opacity: 0.5;
 }
@@ -132,18 +137,18 @@ a.vc-amw-subtitle:hover {
 .vc-amw-button-primary {
     width: 30px;
     height: 30px;
-    background: var(--interactive-normal);
-    color: var(--background-secondary-alt, var(--background-secondary));
+    background: var(--interactive-icon-default, var(--interactive-normal));
+    color: var(--background-base-lower, var(--background-secondary-alt, var(--background-secondary)));
 }
 
 .vc-amw-button:hover:not(:disabled) {
-    color: var(--interactive-hover);
-    background: var(--background-modifier-hover);
+    color: var(--interactive-icon-hover, var(--interactive-hover));
+    background: var(--background-mod-subtle, var(--background-modifier-hover));
 }
 
 .vc-amw-button-primary:hover:not(:disabled) {
-    background: var(--interactive-hover);
-    color: var(--background-secondary-alt, var(--background-secondary));
+    background: var(--interactive-icon-hover, var(--interactive-hover));
+    color: var(--background-base-lower, var(--background-secondary-alt, var(--background-secondary)));
 }
 
 .vc-amw-stations {
@@ -160,7 +165,7 @@ a.vc-amw-subtitle:hover {
     justify-content: center;
     height: 32px;
     padding: 0 8px;
-    border: 1px solid var(--background-modifier-accent);
+    border: 1px solid var(--background-mod-subtle, var(--background-modifier-accent));
     border-radius: 6px;
     background: none;
     color: var(--text-link);
@@ -184,13 +189,13 @@ a.vc-amw-subtitle:hover {
 }
 
 .vc-amw-station:hover {
-    border-color: var(--interactive-hover);
-    background: var(--background-modifier-hover);
+    border-color: var(--interactive-icon-hover, var(--interactive-hover));
+    background: var(--background-mod-subtle, var(--background-modifier-hover));
 }
 
 .vc-amw-fallback {
     padding: 8px;
     font-size: 12px;
-    color: var(--text-danger);
+    color: var(--text-feedback-critical, var(--text-danger));
     text-align: center;
 }
