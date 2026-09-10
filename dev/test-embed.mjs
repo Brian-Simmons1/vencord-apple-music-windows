@@ -56,7 +56,7 @@ proc.stderr.setEncoding("utf8");
 proc.stderr.on("data", d => console.error("[ps stderr]", d.trim()));
 
 setTimeout(() => {
-    proc.stdin.write("AppleInc\\.AppleMusicWin|^iTunes\\.exe$\n");
+    proc.stdin.write(JSON.stringify({ op: "get", pattern: "AppleInc\\.AppleMusicWin|^iTunes\\.exe$" }) + "\n");
     setTimeout(() => {
         proc.stdin.write("quit\n");
         console.log("\nembedded script output:");

@@ -5,7 +5,9 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
+import { disableStyle, enableStyle } from "@api/Styles";
 import { Button } from "@components/Button";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { Paragraph } from "@components/Paragraph";
 import { IS_WINDOWS } from "@utils/constants";
 import definePlugin, { OptionType, PluginNative, ReporterTestable } from "@utils/types";
@@ -13,7 +15,22 @@ import { Activity, ActivityAssets, ActivityButton } from "@vencord/discord-types
 import { ActivityFlags, ActivityStatusDisplayType, ActivityType } from "@vencord/discord-types/enums";
 import { ApplicationAssetUtils, FluxDispatcher, useState } from "@webpack/common";
 
-const Native = VencordNative.pluginHelpers.AppleMusicWindowsRichPresence as PluginNative<typeof import("./native")>;
+import hoverOnlyStyle from "./hoverOnly.css?managed";
+import { Player } from "./PlayerComponent";
+import { setRefreshHandler, setTrack } from "./store";
+
+export const Native = VencordNative.pluginHelpers.AppleMusicWindowsRichPresence as PluginNative<typeof import("./native")>;
+
+/** Which transport commands the media session says it accepts right now. */
+export interface TrackControls {
+    play: boolean;
+    pause: boolean;
+    playPause: boolean;
+    next: boolean;
+    previous: boolean;
+}
+
+export type TransportCommand = "playpause" | "play" | "pause" | "next" | "previous";
 
 export interface TrackData {
     name: string;
@@ -32,6 +49,7 @@ export interface TrackData {
 
     isPlaying?: boolean;
     sourceAppId?: string;
+    controls?: TrackControls;
 }
 
 const enum AssetImageType {
@@ -63,7 +81,32 @@ function setActivity(activity: Activity | null) {
     });
 }
 
-const settings = definePluginSettings({
+function toggleHoverControls(value: boolean) {
+    (value ? enableStyle : disableStyle)(hoverOnlyStyle);
+}
+
+export const settings = definePluginSettings({
+    showPlayerControls: {
+        type: OptionType.BOOLEAN,
+        description: "Show a player with play/pause and skip buttons above the account panel",
+        default: true,
+    },
+    hoverControls: {
+        type: OptionType.BOOLEAN,
+        description: "Only reveal the player's buttons while hovering it",
+        default: false,
+        onChange: (value: boolean) => toggleHoverControls(value),
+    },
+    showAlbumArt: {
+        type: OptionType.BOOLEAN,
+        description: "Show album artwork in the player",
+        default: true,
+    },
+    showProgressBar: {
+        type: OptionType.BOOLEAN,
+        description: "Show a progress bar in the player. It is read-only: Apple Music does not support seeking from outside the app.",
+        default: true,
+    },
     matchAppleMusicApp: {
         type: OptionType.BOOLEAN,
         description: "Track the Apple Music app from the Microsoft Store",
@@ -199,7 +242,7 @@ const settings = definePluginSettings({
     },
 });
 
-function buildSourcePattern() {
+export function buildSourcePattern() {
     const parts: string[] = [];
     if (settings.store.matchAppleMusicApp) parts.push(APPLE_MUSIC_APP_PATTERN);
     if (settings.store.matchITunes) parts.push(ITUNES_PATTERN);
@@ -297,25 +340,71 @@ export default definePlugin({
 
     settings,
 
+    // Renders the player above the account panel. This is the one patch worth
+    // borrowing from SpotifyControls; its others are Spotify-Web-API specific.
+    // Regex against Discord's account panel is the most fragile part of this
+    // plugin - if the player vanishes after a Discord update, suspect this.
+    patches: [
+        {
+            find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
+            replacement: {
+                match: /(?<=\i\.jsxs?\)\()(\i),{(?=[^}]*?userTag:\i,occluded:)/,
+                replace: "$self.PanelWrapper,{VencordOriginal:$1,"
+            }
+        }
+    ],
+
+    PanelWrapper({ VencordOriginal, ...props }) {
+        return (
+            <>
+                <ErrorBoundary
+                    fallback={() => (
+                        <div className="vc-amw-fallback">Failed to render the Apple Music player</div>
+                    )}
+                >
+                    <Player />
+                </ErrorBoundary>
+
+                <VencordOriginal {...props} />
+            </>
+        );
+    },
+
     start() {
+        toggleHoverControls(settings.store.hoverControls);
+        setRefreshHandler(() => { this.updatePresence(); });
+
         this.updatePresence();
         this.updateInterval = setInterval(() => { this.updatePresence(); }, settings.store.refreshInterval * 1000);
     },
 
     stop() {
         clearInterval(this.updateInterval);
+        setRefreshHandler(null);
+        setTrack(null);
         FluxDispatcher.dispatch({ type: "LOCAL_ACTIVITY_UPDATE", activity: null });
         Native.stopHelper();
     },
 
     updatePresence() {
-        this.getActivity().then(activity => { setActivity(activity); });
+        this.refresh().catch(error => {
+            console.error("[AppleMusicWindowsRichPresence] refresh failed:", error);
+        });
     },
 
-    async getActivity(): Promise<Activity | null> {
-        const trackData = await Native.fetchTrackData(buildSourcePattern(), settings.store.showWhenPaused);
-        if (!trackData) return null;
+    async refresh() {
+        // The player needs paused tracks even when the activity hides them,
+        // otherwise there would be nothing left to press play on.
+        const includePaused = settings.store.showWhenPaused || settings.store.showPlayerControls;
+        const trackData = await Native.fetchTrackData(buildSourcePattern(), includePaused);
 
+        setTrack(trackData);
+
+        const hiddenBecausePaused = trackData?.isPlaying === false && !settings.store.showWhenPaused;
+        setActivity(trackData && !hiddenBecausePaused ? await this.getActivity(trackData) : null);
+    },
+
+    async getActivity(trackData: TrackData): Promise<Activity | null> {
         const [largeImageAsset, smallImageAsset] = await Promise.all([
             getImageAsset(settings.store.largeImageType, trackData),
             getImageAsset(settings.store.smallImageType, trackData)

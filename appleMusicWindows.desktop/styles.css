@@ -1,0 +1,124 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Brian Simmons
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-amw-player {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px;
+    background: var(--background-secondary-alt, var(--background-secondary));
+    border-top: 1px solid var(--background-modifier-accent);
+}
+
+.vc-amw-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.vc-amw-art {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex: 0 0 auto;
+}
+
+.vc-amw-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.25;
+}
+
+.vc-amw-title,
+.vc-amw-subtitle {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.vc-amw-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--header-primary);
+}
+
+.vc-amw-subtitle {
+    font-size: 12px;
+    color: var(--header-secondary);
+}
+
+a.vc-amw-title:hover,
+a.vc-amw-subtitle:hover {
+    text-decoration: underline;
+}
+
+.vc-amw-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vc-amw-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    flex: 0 0 auto;
+}
+
+/* Presentational only - Apple Music does not support seeking. */
+.vc-amw-bar {
+    flex: 1 1 auto;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--background-modifier-accent);
+    overflow: hidden;
+}
+
+.vc-amw-bar-fill {
+    height: 100%;
+    background: var(--text-link, var(--brand-experiment));
+    transition: width 1s linear;
+}
+
+.vc-amw-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.vc-amw-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: var(--interactive-normal);
+    cursor: pointer;
+}
+
+.vc-amw-button:disabled {
+    color: var(--interactive-muted);
+    cursor: not-allowed;
+}
+
+.vc-amw-button:hover:not(:disabled) {
+    color: var(--interactive-hover);
+    background: var(--background-modifier-hover);
+}
+
+.vc-amw-fallback {
+    padding: 8px;
+    font-size: 12px;
+    color: var(--text-danger);
+    text-align: center;
+}

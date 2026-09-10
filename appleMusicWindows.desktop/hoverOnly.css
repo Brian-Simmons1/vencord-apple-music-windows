@@ -1,0 +1,22 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Brian Simmons
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/* Enabled only when the "Show controls on hover" setting is on. */
+
+.vc-amw-controls {
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: height 0.15s ease, opacity 0.15s ease;
+}
+
+.vc-amw-player:hover .vc-amw-controls,
+.vc-amw-player:focus-within .vc-amw-controls {
+    height: 30px;
+    opacity: 1;
+    pointer-events: auto;
+}

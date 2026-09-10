@@ -1,10 +1,13 @@
 # Vencord AppleMusicWindowsRichPresence - Windows media session (SMTC) helper.
 #
-# Long-lived request/response host. Reads one request line from stdin and writes
-# exactly one compact JSON line to stdout per request.
+# Long-lived request/response host. Reads one JSON request line from stdin and
+# writes exactly one compact JSON line to stdout per request.
 #
-#   request : a .NET regex matched against each session's SourceAppUserModelId
-#   response: {"ok":true,"found":bool,...}  or  {"ok":false,"error":"..."}
+#   {"op":"get","pattern":"<regex>"}                    -> session snapshot
+#   {"op":"sources"}                                    -> all session app ids
+#   {"op":"cmd","pattern":"<regex>","command":"next"}   -> transport command
+#
+#   response: {"ok":true,...} or {"ok":false,"error":"..."}
 #   "quit" or EOF (parent died) terminates the loop.
 #
 # Requires Windows PowerShell 5.1 (powershell.exe). PowerShell 7 (pwsh) cannot
@@ -37,6 +40,7 @@ try {
 
     $mgrType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]
     $propsType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]
+    $boolType = [bool]
 } catch {
     Write-Line (@{ ok = $false; fatal = $true; error = "init: $($_.Exception.Message)" } | ConvertTo-Json -Compress)
     exit 1
@@ -56,19 +60,23 @@ function Get-Manager {
     return $script:mgr
 }
 
-function Get-Payload([string] $pattern) {
-    $manager = Get-Manager
-    $sessions = @($manager.GetSessions())
+function Get-MatchingSession([string] $pattern) {
+    $sessions = @((Get-Manager).GetSessions())
+    $matched = @($sessions | Where-Object { $_.SourceAppUserModelId -match $pattern })
+    if ($matched.Count -eq 0) { return $null }
 
     # Prefer a session that is actually playing over one that is merely present,
     # so a paused Apple Music window doesn't mask an actively playing one.
-    $matched = @($sessions | Where-Object { $_.SourceAppUserModelId -match $pattern })
-    if ($matched.Count -eq 0) {
-        return @{ ok = $true; found = $false; sources = @($sessions | ForEach-Object { $_.SourceAppUserModelId }) }
-    }
+    $playing = $matched | Where-Object { "$($_.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing' } | Select-Object -First 1
+    if ($playing) { return $playing }
+    return $matched[0]
+}
 
-    $session = $matched | Where-Object { "$($_.GetPlaybackInfo().PlaybackStatus)" -eq 'Playing' } | Select-Object -First 1
-    if ($null -eq $session) { $session = $matched[0] }
+function Get-Snapshot([string] $pattern) {
+    $session = Get-MatchingSession $pattern
+    if ($null -eq $session) {
+        return @{ ok = $true; found = $false }
+    }
 
     $info = $session.GetPlaybackInfo()
     $status = "$($info.PlaybackStatus)"
@@ -95,6 +103,10 @@ function Get-Payload([string] $pattern) {
     if ($duration -gt 0 -and $position -gt $duration) { $position = $duration }
     if ($position -lt 0) { $position = 0 }
 
+    # Apple Music reports these honestly: it advertises seek as unavailable and
+    # in fact ignores TryChangePlaybackPositionAsync, so the UI trusts them.
+    $c = $info.Controls
+
     return @{
         ok          = $true
         found       = $true
@@ -107,7 +119,32 @@ function Get-Payload([string] $pattern) {
         trackNumber = [int] $props.TrackNumber
         position    = [math]::Round($position, 3)
         duration    = [math]::Round($duration, 3)
+        controls    = @{
+            play      = [bool] $c.IsPlayEnabled
+            pause     = [bool] $c.IsPauseEnabled
+            playPause = [bool] $c.IsPlayPauseToggleEnabled
+            next      = [bool] $c.IsNextEnabled
+            previous  = [bool] $c.IsPreviousEnabled
+        }
     }
+}
+
+function Invoke-Transport([string] $pattern, [string] $command) {
+    $session = Get-MatchingSession $pattern
+    if ($null -eq $session) { return @{ ok = $true; found = $false } }
+
+    # NOTE: these return $true merely for "delivered", not "honoured" - Apple
+    # Music returns $true for seek and shuffle while ignoring both.
+    switch ($command) {
+        'playpause' { $r = Await ($session.TryTogglePlayPauseAsync()) ($boolType) }
+        'play'      { $r = Await ($session.TryPlayAsync()) ($boolType) }
+        'pause'     { $r = Await ($session.TryPauseAsync()) ($boolType) }
+        'next'      { $r = Await ($session.TrySkipNextAsync()) ($boolType) }
+        'previous'  { $r = Await ($session.TrySkipPreviousAsync()) ($boolType) }
+        default     { throw "unknown command: $command" }
+    }
+
+    return @{ ok = $true; found = $true; command = $command; delivered = [bool] $r }
 }
 
 Write-Line (@{ ok = $true; ready = $true } | ConvertTo-Json -Compress)
@@ -120,7 +157,17 @@ while ($true) {
     if ($line -eq '') { continue }
 
     try {
-        Write-Line ((Get-Payload $line) | ConvertTo-Json -Compress -Depth 4)
+        $req = $line | ConvertFrom-Json
+        switch ($req.op) {
+            'get'     { $payload = Get-Snapshot $req.pattern }
+            'cmd'     { $payload = Invoke-Transport $req.pattern $req.command }
+            'sources' {
+                $ids = @((Get-Manager).GetSessions() | ForEach-Object { $_.SourceAppUserModelId })
+                $payload = @{ ok = $true; sources = $ids }
+            }
+            default   { throw "unknown op: $($req.op)" }
+        }
+        Write-Line ($payload | ConvertTo-Json -Compress -Depth 4)
     } catch {
         # Drop the cached manager so the next request rebuilds it.
         $script:mgr = $null

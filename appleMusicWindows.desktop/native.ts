@@ -11,7 +11,7 @@ import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import type { TrackData } from ".";
+import type { TrackControls, TrackData, TransportCommand } from ".";
 import { SMTC_SCRIPT } from "./smtcScript";
 
 // Windows PowerShell 5.1 specifically: PowerShell 7 (pwsh) cannot resolve
@@ -175,7 +175,13 @@ function startHelper(): Promise<void> {
     return starting;
 }
 
-function requestLine(pattern: string): Promise<string> {
+interface HelperRequest {
+    op: "get" | "sources" | "cmd";
+    pattern?: string;
+    command?: TransportCommand;
+}
+
+function requestLine(request: HelperRequest): Promise<string> {
     return new Promise<string>((resolve, reject) => {
         const child = proc;
         if (!child?.stdin?.writable) {
@@ -191,7 +197,7 @@ function requestLine(pattern: string): Promise<string> {
         }, REQUEST_TIMEOUT_MS);
 
         pending.push({ resolve, reject, timer });
-        child.stdin.write(pattern + "\n", error => {
+        child.stdin.write(JSON.stringify(request) + "\n", error => {
             if (error) {
                 clearTimeout(timer);
                 pending = pending.filter(p => p.timer !== timer);
@@ -201,14 +207,14 @@ function requestLine(pattern: string): Promise<string> {
     });
 }
 
-async function querySessions(pattern: string): Promise<any | null> {
+async function sendRequest(request: HelperRequest): Promise<any | null> {
     if (process.platform !== "win32") return null;
 
     if (Date.now() < cooldownUntil) return null;
 
     try {
         await startHelper();
-        const line = await requestLine(pattern);
+        const line = await requestLine(request);
         const payload = JSON.parse(line);
         consecutiveFailures = 0;
         if (payload?.ok === false) {
@@ -257,6 +263,7 @@ interface RawSession {
     position?: number;
     duration?: number;
     sources?: string[];
+    controls?: TrackControls;
 }
 
 function normaliseSession(raw: RawSession) {
@@ -415,7 +422,7 @@ export async function fetchTrackData(
     sourcePattern: string,
     includePaused: boolean
 ): Promise<TrackData | null> {
-    const payload = await querySessions(sourcePattern) as RawSession | null;
+    const payload = await sendRequest({ op: "get", pattern: sourcePattern }) as RawSession | null;
     if (!payload?.found) return null;
 
     const isPlaying = payload.status === "Playing";
@@ -430,14 +437,30 @@ export async function fetchTrackData(
         ...track,
         ...remoteData,
         isPlaying,
-        sourceAppId: payload.sourceAppId
+        sourceAppId: payload.sourceAppId,
+        controls: payload.controls
     };
+}
+
+/**
+ * Send a transport command to the matching session.
+ *
+ * Returns whether the command was *delivered*, which is not the same as
+ * honoured: Apple Music returns true for seek and shuffle while ignoring both.
+ * Only the commands it advertises in `controls` actually take effect.
+ */
+export async function sendCommand(
+    _: IpcMainInvokeEvent,
+    sourcePattern: string,
+    command: TransportCommand
+): Promise<boolean> {
+    const payload = await sendRequest({ op: "cmd", pattern: sourcePattern, command });
+    return payload?.found === true && payload?.delivered === true;
 }
 
 /** Diagnostic for the settings panel: what media sources does Windows see? */
 export async function listMediaSources(_: IpcMainInvokeEvent): Promise<string[] | null> {
-    // A pattern that cannot match, so the helper returns the full source list.
-    const payload = await querySessions("(?!)") as RawSession | null;
+    const payload = await sendRequest({ op: "sources" });
     if (!payload) return null;
     const { sources } = payload;
     if (!sources) return [];

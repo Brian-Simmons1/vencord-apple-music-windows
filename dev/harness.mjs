@@ -66,7 +66,7 @@ class Helper {
         return new Promise((res, rej) => {
             const timer = setTimeout(() => rej(new Error("timeout")), 5000);
             this.queue.push(l => { clearTimeout(timer); res(JSON.parse(l)); });
-            this.proc.stdin.write(pattern + "\n");
+            this.proc.stdin.write(JSON.stringify({ op: "get", pattern }) + "\n");
         });
     }
 
@@ -85,7 +85,7 @@ for (let i = 0; i < polls; i++) {
     const raw = await h.request(SOURCE_PATTERN);
     const ms = Date.now() - t;
     if (!raw.ok) { console.log(`#${i} ERROR`, raw); }
-    else if (!raw.found) { console.log(`#${i} no Apple session (${ms}ms). visible sources:`, raw.sources); }
+    else if (!raw.found) { console.log(`#${i} no Apple session (${ms}ms)`); }
     else {
         console.log(`#${i} (${ms}ms) raw:`, JSON.stringify({ artist: raw.artist, albumTitle: raw.albumTitle, status: raw.status, position: raw.position, duration: raw.duration }));
         console.log(`   parsed:`, parseMetadata(raw));

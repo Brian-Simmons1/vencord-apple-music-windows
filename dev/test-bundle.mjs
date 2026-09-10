@@ -82,7 +82,7 @@ proc.stderr.on("data", d => console.error("[ps stderr]", String(d).trim()));
 const next = () => new Promise(res => waiters.push(res));
 await next(); // ready banner
 
-proc.stdin.write("AppleInc\\.AppleMusicWin|^iTunes\\.exe$\n");
+proc.stdin.write(JSON.stringify({ op: "get", pattern: "AppleInc\\.AppleMusicWin|^iTunes\\.exe$" }) + "\n");
 const payload = JSON.parse(await next());
 proc.stdin.write("quit\n");
 

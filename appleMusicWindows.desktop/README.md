@@ -17,6 +17,35 @@ iTunes Search API.
 - Everything is customisable with the same format strings as the macOS plugin:
   `{name}`, `{artist}`, `{album}`
 
+## Player controls
+
+Optionally shows a small player above the account panel with **previous / play-pause / next**,
+album art, and a progress bar — in the same spot as `SpotifyControls`. Everything about it is a
+setting; nothing is forced on:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| Show player controls | on | The player itself. Off = presence only, exactly as before. |
+| Only reveal buttons on hover | off | Buttons stay hidden until you hover the player. |
+| Show album art | on | 40px artwork thumbnail. |
+| Show progress bar | on | Elapsed / total. **Read-only** — see below. |
+
+### What Apple Music actually supports
+
+Each command was tested against the running app rather than trusted, which matters because
+**`Try*Async` returns `true` even when the command is silently ignored**:
+
+| Control | Advertised | Actually works |
+| --- | --- | --- |
+| Play / pause | yes | yes |
+| Next / previous | yes | yes |
+| **Seek** | no | **no** — returns `true`, position never moves |
+| Shuffle / repeat | no | no — returns `true`, ignored |
+
+So there is no draggable seek bar, unlike `SpotifyControls`. The progress bar is presentational.
+The buttons disable themselves from the session's advertised `controls` flags, which did turn out
+to be truthful — seek is advertised as unavailable and is genuinely unavailable.
+
 ## Supported players
 
 | Source | Media session id | Default |
@@ -36,7 +65,17 @@ currently see — start here if nothing is showing up.
 
 `native.ts` runs in Discord's main process and keeps a single long-lived `powershell.exe` child alive.
 The child ([`dev/smtc.ps1`](../dev/smtc.ps1), embedded into the bundle as `smtcScript.ts`) reads one
-request line per poll and answers with one line of JSON.
+JSON request line and answers with one line of JSON:
+
+```
+{"op":"get","pattern":"<regex>"}                     -> session snapshot + control flags
+{"op":"sources"}                                     -> every media source Windows sees
+{"op":"cmd","pattern":"<regex>","command":"next"}    -> transport command
+```
+
+The player subscribes to the same polled snapshot the presence uses, so enabling it does not double
+the polling. After a button press it requests one extra refresh so the play/pause icon doesn't sit
+stale until the next tick.
 
 A few things worth knowing:
 

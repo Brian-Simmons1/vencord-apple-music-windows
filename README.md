@@ -15,17 +15,25 @@ how it works, and the Apple-Music-specific quirks it works around.
 
 ```
 appleMusicWindows.desktop/   <- copy this whole folder into Vencord's src/userplugins/
-  index.tsx                  Discord-side plugin: settings + activity
+  index.tsx                  Discord-side plugin: settings, activity, panel patch
   native.ts                  Node-side: PowerShell helper + iTunes lookup
+  PlayerComponent.tsx        The play/pause + skip player above the account panel
+  store.ts                   Shares the polled track data with the player
+  styles.css                 Player styling
+  hoverOnly.css              Toggled on by the "hover controls" setting
   smtcScript.ts              GENERATED from dev/smtc.ps1
   README.md
 dev/                         Not shipped - source of truth + test harnesses
   smtc.ps1                   The PowerShell media-session helper
   gen-script.mjs             Embeds smtc.ps1 into smtcScript.ts
   harness.mjs                Drive the helper outside Discord
+  test-protocol.mjs          get / sources / cmd, plus malformed input
+  test-native.mjs            The real native.ts, end to end, with assertions
   test-embed.mjs             Verify the embedded copy matches and runs
+  test-bundle.mjs            Pull the script out of Vencord's build and run it
   test-match.mjs             Verify iTunes track matching
   test-itunes.mjs            Raw iTunes API responses
+  probe-controls.ps1         Read-only: what controls does the session advertise?
 ```
 
 ## Requirements
@@ -92,13 +100,16 @@ Apple Music first:
 
 ```powershell
 node dev/test-native.mjs     # the real native.ts, end to end, with assertions
+node dev/test-protocol.mjs   # get/sources/cmd, bad regex, bad JSON, clean exit
 node dev/test-embed.mjs      # embedded copy is byte-identical to smtc.ps1, and runs
-node dev/test-edge.mjs       # no-match, invalid regex, playing-beats-paused, clean exit
 node dev/test-match.mjs      # iTunes lookup picks the right song
 node dev/test-bundle.mjs     # pull the script back out of Vencord's built bundle and run it
 node dev/harness.mjs 5 2000  # poll the live session 5 times, 2s apart
 node dev/gen-script.mjs --check   # smtcScript.ts is in sync with smtc.ps1
 ```
+
+`test-protocol.mjs` briefly toggles playback to prove commands are honoured, then restores the
+state it found.
 
 `dev/test-native.mjs` is the important one — it bundles the real `native.ts` (stubbing only the two
 Vencord/Electron imports) and asserts on the `TrackData` it produces. `dev/harness.mjs` is the
