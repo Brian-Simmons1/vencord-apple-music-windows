@@ -69,7 +69,7 @@ const enum LinkType {
 const applicationId = "1239490006054207550";
 
 // SourceAppUserModelId patterns for the Windows media session (SMTC).
-const APPLE_MUSIC_APP_PATTERN = "AppleInc\\.AppleMusicWin";
+const APPLE_MUSIC_APP_PATTERN = "^(?:AppleInc\\.AppleMusicWin|AppleMusic\\.exe)$";
 const ITUNES_PATTERN = "^iTunes\\.exe$";
 const MATCH_NOTHING_PATTERN = "(?!)";
 
